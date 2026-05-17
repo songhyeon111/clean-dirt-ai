@@ -3,7 +3,7 @@ from PIL import Image
 from ultralytics import YOLO
 
 # =========================
-# UI 설정 (Figma 느낌)
+# UI 설정
 # =========================
 st.set_page_config(page_title="Clean vs Dirt AI", layout="wide")
 
@@ -20,14 +20,20 @@ st.markdown("""
         color: gray;
         margin-bottom: 30px;
     }
+    .result-box {
+        padding: 20px;
+        border-radius: 15px;
+        font-size: 20px;
+        font-weight: bold;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="title">🧼 Clean vs Dirt AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">YOLO Object Detection System</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">YOLO-based Cleaning Detection System</div>', unsafe_allow_html=True)
 
 # =========================
-# YOLO 모델 로딩
+# YOLO 모델
 # =========================
 @st.cache_resource
 def load_model():
@@ -41,12 +47,8 @@ model = load_model()
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📤 Upload Image")
-    uploaded_file = st.file_uploader("이미지를 업로드하세요", type=["jpg", "jpeg", "png"])
+    uploaded_file = st.file_uploader("이미지 업로드", type=["jpg", "jpeg", "png"])
 
-# =========================
-# 실행
-# =========================
 if uploaded_file is not None:
 
     image = Image.open(uploaded_file)
@@ -62,23 +64,45 @@ if uploaded_file is not None:
 
     annotated_image = result.plot()
 
+    # =========================
+    # 판정 로직 (핵심)
+    # =========================
+    detected_classes = []
+
+    if result.boxes is not None and len(result.boxes) > 0:
+        for box in result.boxes:
+            cls_id = int(box.cls[0])
+            name = model.names[cls_id]
+            detected_classes.append(name)
+
+    # Dirty 여부 판단
+    is_dirty = "dirt" in [c.lower() for c in detected_classes]
+
+    # =========================
+    # 결과 출력
+    # =========================
     with col2:
         st.subheader("🔍 Detection Result")
         st.image(annotated_image, use_container_width=True)
 
-        st.subheader("📊 AI Prediction")
-
-        if result.boxes is not None and len(result.boxes) > 0:
-            for box in result.boxes:
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
-                name = model.names[cls_id]
-
-                st.write(f"👉 **{name}** ({conf:.2f})")
+        if is_dirty:
+            st.error("🧹 청소가 필요합니다")
         else:
-            st.info("No objects detected 🚀")
+            if len(detected_classes) == 0:
+                st.success("✨ 패널이 깨끗합니다")
+            else:
+                st.success("✨ 패널이 깨끗합니다")
+
+        # 상세 정보
+        st.subheader("📊 Detected Objects")
+
+        if len(detected_classes) > 0:
+            for c in detected_classes:
+                st.write(f"👉 {c}")
+        else:
+            st.write("No objects detected")
 
 else:
     with col2:
-        st.info("Upload image to see AI prediction 🚀")
+        st.info("이미지를 업로드하면 결과가 표시됩니다 🚀")
 
